@@ -1,4 +1,4 @@
-module SrunGO
+module github.com/sadak-x/srungo
 
 go 1.25.3
 

@@ -71,7 +71,7 @@ var (
 // 初始化路径
 func InitPaths() Paths {
 	var paths Paths
-	paths.ConfigDir ="../../configs"
+	paths.ConfigDir = "../../configs"
 	paths.LogDir = "../../log"
 	paths.ConfigFile = filepath.Join(paths.ConfigDir, "srun_login.conf")
 	paths.LogFile = filepath.Join(paths.LogDir, "srun_login.log")
@@ -130,6 +130,7 @@ func SaveConfig(c Config, configFile string) error {
 	writeKV("max_retry_times", c.MaxRetryTimes, "Maximum number of retry attempts (0 for unlimited)")
 	writeKV("debug_mode", c.DebugMode, "Enable debug logging (true/false)")
 	writeKV("network_type", c.NetworkType, "Campus network type (cmcc/ndcard/unicom/ncu)")
+	writeKV("location", c.Location, "Location (dormitory/teaching)")
 
 	return os.WriteFile(configFile, []byte(b.String()), 0644)
 }

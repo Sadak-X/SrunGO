@@ -4,10 +4,10 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
-
 
 	"github.com/sadak-x/srungo/internal/config"
 	"github.com/sadak-x/srungo/internal/crypto"
@@ -102,11 +102,14 @@ func (s *Service) LoginOnce() (bool, error) {
 
 	loginResult, err := s.NetClient.Login(info, token, hmd5, encodedUser, checksum)
 	resultJson, _ := json.Marshal(loginResult)
-	if err == nil {
-		s.Logger.Debug("Login result: "+string(resultJson), true)
+	s.Logger.Debug("Login result: "+string(resultJson), true)
+
+	if loginResult["ecode"] != float64(0) {
+		return false, errors.New("ecode is not zero. Something wrong. Enable debug mode for more info")
+	} else {
 		return true, err
 	}
-	return false, err
+
 }
 
 // 允许自动重连时，循环检测网络并在掉线时登录

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/sadak-x/srungo/internal/auth"
+	"github.com/sadak-x/srungo/internal/cli"
 	"github.com/sadak-x/srungo/internal/config"
 	"github.com/sadak-x/srungo/internal/logger"
 	"golang.org/x/term"
@@ -27,7 +28,7 @@ func promptInteractiveConfig(paths config.Paths, log *logger.Logger) config.Conf
 	log.Info("Configuration file not found or incomplete, starting interactive setup...", true)
 	reader := bufio.NewReader(os.Stdin)
 
-	// Get student ID
+	// 获取学号
 	var username string
 	for {
 		fmt.Print("Please enter your student ID: ")
@@ -39,7 +40,7 @@ func promptInteractiveConfig(paths config.Paths, log *logger.Logger) config.Conf
 		log.Error("Invalid input: Please enter numbers only", true)
 	}
 
-	// Select location
+	// 设置 location
 	fmt.Println("\nSelect your location:")
 	fmt.Println("1. Teaching Area (NCUWLAN 222.204.3.221)")
 	fmt.Println("2. Dormitory Area (NCU-5G 222.204.3.154)")
@@ -144,13 +145,55 @@ func main() {
 	ensureDirectoryExists(paths.ConfigDir)
 	ensureDirectoryExists(paths.LogDir)
 
-	// 加载配置
-	cfg := config.LoadConfig(paths.ConfigFile)
+	// 先解析命令行参数
+	cliArgs := cli.ParseArgs()
+
+	var cfg config.Config
+	if cliArgs.Use {
+		// 使用命令行参数构造 cfg，CLI 优先
+		loginHost := cliArgs.LoginHost
+		// 若没有显式提供 loginHost，则根据 location 推断（与之前交互逻辑一致）
+		location := cliArgs.Location
+		if location == "" {
+			// 若未指定 location，默认使用 dormitory（与之前交互默认一致）
+			location = "dormitory"
+		}
+		if loginHost == "" {
+			if location == "teaching" {
+				loginHost = config.Locations["teaching"]["login_host"].(string)
+			} else {
+				loginHost = config.Locations["dormitory"]["login_host"].(string)
+			}
+		}
+
+		fullUsername := cliArgs.Username
+		// 如果在 dormitory 且传入了 networkType，但 username 不包含 @，补齐
+		if location == "dormitory" && cliArgs.NetworkType != "" && !strings.Contains(fullUsername, "@") {
+			fullUsername = fmt.Sprintf("%s@%s", cliArgs.Username, cliArgs.NetworkType)
+		}
+
+		cfg = config.Config{
+			Username:      fullUsername,
+			Password:      cliArgs.Password,
+			LoginHost:     loginHost,
+			AutoReconnect: cliArgs.AutoReconnect,
+			CheckInterval: config.DefaultConfig["check_interval"].(int),
+			CheckURL:      config.DefaultConfig["check_url"].(string),
+			RetryInterval: config.DefaultConfig["retry_interval"].(int),
+			MaxRetryTimes: config.DefaultConfig["max_retry_times"].(int),
+			DebugMode:     cliArgs.DebugMode,
+			NetworkType:   cliArgs.NetworkType,
+			Location:      location,
+		}
+	} else {
+		// 否则按原来逻辑从磁盘读取配置（并在需要时交互）
+		cfg = config.LoadConfig(paths.ConfigFile)
+	}
 
 	log := logger.New(paths.LogFile, cfg.DebugMode)
 
-	// 如果本地的配置文件不存在，或存在但是内容不合法
-	if !config.ValidateConfig(cfg) {
+	// 如果没有使用命令行参数并且本地的配置文件不存在或不合法，走交互式设置
+	if !cliArgs.Use && !config.ValidateConfig(cfg) {
 		cfg = promptInteractiveConfig(paths, log)
 	}
 
